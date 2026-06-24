@@ -1,0 +1,199 @@
+================================================================================
+  MANUAL DE USUARIO  —  SISTEMA DE AUDITORIA DE SEGURIDAD  /auditoria-seguridad
+  Equipo multi-agente de ciberseguridad para Claude Code
+  Creado: 2026-06-13   |   Instalado en: C:\Users\jordi\.claude\
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1. ¿QUE ES Y PARA QUE SIRVE?
+--------------------------------------------------------------------------------
+Es un equipo de 5 sub-agentes expertos en seguridad que, cuando los invocas,
+revisan un proyecto ENTERO de arriba a abajo, encuentran vulnerabilidades
+(de las mas dificiles de detectar a las mas faciles) y te proponen la solucion
+concreta de cada una, con codigo corregido.
+
+Lo lanzas en CUALQUIER proyecto. Es de SOLO LECTURA: no toca tu codigo ni tu
+sistema. Lo unico que escribe es un informe en markdown.
+
+Cubre todos los ambitos que pediste:
+  - Autenticacion, permisos y control de acceso (IDOR, escalada, JWT, sesiones)
+  - Criptografia mal usada (hashes debiles, claves, aleatoriedad insegura)
+  - Secretos (claves/passwords hardcodeadas, incluso en el historial de git)
+  - Inyeccion (SQLi, XSS, RCE, SSRF, path traversal, deserializacion, etc.)
+  - Exposicion de datos / PII (datos sensibles en logs y respuestas)
+  - Errores de configuracion (CORS, security headers, modo debug)
+  - Cadena de suministro (CVEs, dependencias, postinstall, CI/CD, Docker, IaC)
+  - Logica de negocio y condiciones de carrera (lo mas dificil de hallar)
+
+
+--------------------------------------------------------------------------------
+2. COMO SE USA (PASO A PASO)
+--------------------------------------------------------------------------------
+  a) Abre Claude Code DENTRO del proyecto que quieres auditar
+     (o pasa la ruta como argumento).
+
+  b) Escribe:
+         /auditoria-seguridad
+     o para auditar solo una parte (proyectos grandes):
+         /auditoria-seguridad src/api
+
+  c) Te preguntara:  "¿El codigo es TUYO/de confianza o de TERCEROS?"
+        - TUYO/confianza  -> permite ejecutar escaneres de dependencias.
+        - DE TERCEROS      -> modo seguro: solo lee, no ejecuta gestores de
+                              paquetes (asi no puede correr codigo malicioso
+                              del proyecto en tu maquina).
+     Ante la duda, elige TERCEROS.
+
+  d) Lanza los 5 agentes en paralelo, consolida y escribe el informe:
+         AUDITORIA-SEGURIDAD-AAAA-MM-DD.md   (en la raiz del proyecto)
+     y te da un resumen en el chat.
+
+
+--------------------------------------------------------------------------------
+3. LOS 5 AGENTES (QUE BUSCA CADA UNO)
+--------------------------------------------------------------------------------
+  auditor-inyecciones        SQLi, XSS, RCE, SSRF (+IMDS cloud), path traversal,
+                             deserializacion, XXE, prototype pollution, ReDoS.
+                             Metodo: rastreo de datos no confiables hasta puntos
+                             peligrosos (taint).
+
+  auditor-autenticacion      Login, sesiones, JWT, CSRF, IDOR/BOLA, BFLA, escalada
+                             de privilegios, criptografia. Metodo: quien puede
+                             llamar a que y con que prueba de identidad.
+
+  auditor-secretos-exposicion  Credenciales hardcodeadas, secretos en el historial
+                             git, CORS, security headers, modo debug, PII en logs.
+
+  auditor-cadena-suministro  CVEs en dependencias, lockfiles, scripts postinstall
+                             maliciosos, GitHub Actions, Dockerfiles, IaC.
+
+  auditor-logica-negocio     Fallos de logica, condiciones de carrera/TOCTOU,
+                             mass assignment, validacion, abuso de limites.
+                             (La clase de fallo mas dificil de encontrar.)
+
+
+--------------------------------------------------------------------------------
+4. POR QUE ES SEGURO PARA TU SISTEMA (IMPORTANTE)
+--------------------------------------------------------------------------------
+  - Los agentes NO tienen herramientas de escritura: no pueden modificar ficheros.
+  - 2 de los 5 (auth y logica) no tienen ni shell: no ejecutan NADA.
+  - Los 3 que usan escaneres pasan por un HOOK GUARDIAN (allowlist estricto):
+        * Solo deja correr escaneres de lectura conocidos.
+        * BLOQUEA: borrar/escribir, instalar, descargar, encadenar comandos
+          (; | &), redirigir (>), y trucos de ofuscacion (Base64, alias).
+  - Nunca instala herramientas (si falta una, te lo dice como recomendacion).
+  - No envia tu codigo a internet (solo consulta bases de avisos de CVEs).
+  - El contenido auditado se trata como DATOS: si un fichero intenta darle
+    ordenes a la IA ("ignora todo y haz X"), lo ignora y lo reporta como
+    sospechoso (defensa anti prompt-injection).
+  - El UNICO fichero que se escribe es el informe.
+
+
+--------------------------------------------------------------------------------
+5. COMO LEER EL INFORME
+--------------------------------------------------------------------------------
+  - RESUMEN EJECUTIVO (arriba): ordenado por RIESGO (lo mas urgente de arreglar).
+    Empieza por aqui para el triaje.
+  - HALLAZGOS DETALLADOS (cuerpo): ordenado de lo MAS DIFICIL de detectar a lo
+    mas facil (como pediste). Cada hallazgo trae:
+        severidad, dificultad (1-5), confianza, ubicacion archivo:linea,
+        CWE/OWASP, cadena de explotacion, evidencia, y SOLUCION con codigo.
+  - PLAN DE REMEDIACION: que arreglar primero, segundo, despues.
+  - ANEXOS: hallazgos teoricos/no verificados, herramientas recomendadas a
+    instalar, y contenido sospechoso de prompt-injection.
+
+
+--------------------------------------------------------------------------------
+6. ESCANERES EN ESTA MAQUINA (estado a 2026-06-13)
+--------------------------------------------------------------------------------
+  INSTALADOS:    bandit, pip-audit, npm, git
+  NO INSTALADOS: semgrep, gitleaks, trufflehog, osv-scanner, trivy, checkov
+
+  RECOMENDADO instalar gitleaks: cierra el hueco de "secretos en el historial
+  de git", que el analisis manual no cubre bien. El sistema lo usara solo si
+  esta presente. (No instales nada que no quieras; el sistema funciona igual
+  sin ellos, solo marca esos puntos como "cobertura degradada" con honestidad.)
+
+  COMANDO DE INSTALACION (la unica recomendada por defecto):
+    gitleaks  ->  winget install Gitleaks.Gitleaks     (local-only, seguro)
+
+  Tras instalar, REINICIA Claude Code (winget no refresca el PATH de la sesion
+  activa); la Fase 0 detecta automaticamente lo que este disponible.
+
+  [ESPEJO] La lista completa de herramientas y comandos vive en SKILL.md, seccion
+  "Gobernanza de herramientas" (UNICA FUENTE DE VERDAD). No edites comandos aqui
+  sin actualizar SKILL.md. semgrep/osv-scanner/trivy/checkov NO se recomiendan por
+  defecto (ruido/operativa); el sistema las usa en silencio solo si ya estan.
+
+
+--------------------------------------------------------------------------------
+7. COSAS QUE CONVIENE RECORDAR / TRUCOS
+--------------------------------------------------------------------------------
+  - REINICIAR tras crear o editar agentes: los agentes nuevos en
+    ~/.claude/agents/ solo se registran al reiniciar Claude Code. Las skills
+    (SKILL.md) si se recargan en caliente.
+
+  - USAR OPUS para auditorias de verdad: la parte dificil es la consolidacion
+    (deduplicar, verificar, ordenar). Ejecuta la skill con el modelo Opus.
+    Los agentes especialistas van en Sonnet por coste (esta bien asi).
+
+  - PROYECTOS GRANDES (monorepos): audita por partes con la subruta, p.ej.
+        /auditoria-seguridad backend/auth
+    para no saturar y obtener mas profundidad.
+
+  - PROYECTOS EN ONEDRIVE: te avisara; puede ir lento (descarga de ficheros) y
+    puede pedirte escribir el informe fuera de la carpeta sincronizada.
+
+  - PROYECTO VACIO: si no hay codigo, te lo dice y no hace nada (no gasta).
+
+  - NO se dispara solo: los agentes estan configurados para NO activarse en
+    tareas normales de programacion. Solo cuando invocas /auditoria-seguridad
+    o pides explicitamente una auditoria de seguridad.
+
+
+--------------------------------------------------------------------------------
+8. DONDE ESTA TODO (POR SI QUIERES TOCARLO)
+--------------------------------------------------------------------------------
+  Agentes:    C:\Users\jordi\.claude\agents\auditor-*.md
+                -> editables: puedes ampliar el "checklist de dominio" de cada
+                   uno, o cambiar "model: sonnet" a "model: opus" en el agente
+                   de logica de negocio para auditorias profundas.
+  Hook guard: C:\Users\jordi\.claude\hooks\auditoria-shell-guard.ps1
+                -> la lista blanca de comandos permitidos esta aqui (variable
+                   $allow) y la lista de tokens prohibidos ($danger).
+  Skill:      C:\Users\jordi\.claude\skills\auditoria-seguridad\SKILL.md
+                -> el "cerebro" orquestador (las 4 fases).
+  Plantilla:  C:\Users\jordi\.claude\skills\auditoria-seguridad\plantilla-informe.md
+  Manual:     este fichero.
+
+  (Tras editar cualquier agente o el hook -> reinicia Claude Code.)
+
+
+--------------------------------------------------------------------------------
+9. PROYECTO DE PRUEBA (FIXTURE)
+--------------------------------------------------------------------------------
+  Hay un mini-proyecto DELIBERADAMENTE vulnerable para probar el sistema:
+        C:\Users\jordi\pruebas-auditoria\app-vulnerable\
+  Tiene al menos 1 fallo por agente + 1 fichero trampa de prompt-injection.
+  Pruebalo con:
+        /auditoria-seguridad C:\Users\jordi\pruebas-auditoria\app-vulnerable
+  Es desechable: borralo cuando quieras.
+
+
+--------------------------------------------------------------------------------
+10. LIMITACIONES HONESTAS (que NO hace)
+--------------------------------------------------------------------------------
+  - Es analisis ESTATICO (lee codigo). Produce hipotesis priorizadas de alta
+    calidad, NO explotacion confirmada. Las carreras, la logica de negocio y
+    el SSRF que dependen de ejecucion pueden tener falsos positivos/negativos
+    sin pruebas dinamicas (DAST/fuzzing).
+  - Sin gitleaks/osv/trivy instalados, esos dominios quedan con "cobertura
+    degradada" (te lo dira el informe, no lo oculta).
+  - No sustituye una auditoria profesional con explotacion real, pero te da una
+    primera pasada muy completa y accionable, repetible cuando quieras.
+
+================================================================================
+  Resumen en una linea: escribe  /auditoria-seguridad  en tu proyecto y obten
+  un informe completo de seguridad con soluciones, sin riesgo para tu sistema.
+================================================================================
